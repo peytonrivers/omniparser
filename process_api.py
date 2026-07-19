@@ -37,3 +37,6 @@ def cal(data: MathProcesser):
     a = data.a
     b = data.b
     return a + b
+
+if __name__ == "__main__":
+    uvicorn.run("process_api:app", host="0.0.0.0" ,port=5000, reload=True)
