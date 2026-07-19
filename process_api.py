@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from process import image_processer
 from typing import TypedDict
 import PIL
 from PIL import Image
 from pydantic import BaseModel
+import uvicorn
 
 app = FastAPI()
 
