@@ -18,6 +18,9 @@ class MathProcesser(BaseModel):
     a: int
     b: int
 
+@app.post("/")
+def fastapi_start():
+    return {"success": "everything is working"}
 
 @app.post("/image_process")
 def process_image(data: ImageProcesser):
