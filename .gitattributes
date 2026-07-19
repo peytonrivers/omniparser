@@ -1,2 +1,2 @@
-weights/icon_caption_forence/** filter=lfs diff=lfs merge=lfs -text
+weights/icon_caption_florence/** filter=lfs diff=lfs merge=lfs -text
 weights/icon_detect/** filter=lfs diff=lfs merge=lfs -text
