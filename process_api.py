@@ -19,7 +19,7 @@ class MathProcesser(BaseModel):
     a: int
     b: int
 
-@app.get("/")
+@app.get("/test")
 def fastapi_start():
     return {"success": "everything is working"}
 
