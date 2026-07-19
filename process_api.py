@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from process import image_processer
 from typing import TypedDict
 import PIL
 from PIL import Image
@@ -22,7 +23,7 @@ class MathProcesser(BaseModel):
 def fastapi_start():
     return {"success": "everything is working"}
 
-"""@app.post("/image_process")
+@app.post("/image_process")
 def process_image(data: ImageProcesser):
     image_input = data.image_input
     box_threshold = data.box_threshold
@@ -30,7 +31,7 @@ def process_image(data: ImageProcesser):
     use_paddleocr = data.use_paddleocr
     imgsz = data.imgsz
     response = image_processer(image_input, box_threshold, iou_threshold, use_paddleocr, imgsz)
-    return response"""
+    return response
 
 @app.post("/math")
 def cal(data: MathProcesser):
@@ -38,5 +39,3 @@ def cal(data: MathProcesser):
     b = data.b
     return a + b
 
-if __name__ == "__main__":
-    uvicorn.run("process_api:app", host="0.0.0.0" ,port=5000, reload=True)
