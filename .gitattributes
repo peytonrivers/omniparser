@@ -1,2 +1,4 @@
 weights/icon_caption_florence/** filter=lfs diff=lfs merge=lfs -text
 weights/icon_detect/** filter=lfs diff=lfs merge=lfs -text
+weights/handler.py filter=lfs diff=lfs merge=lfs -text
+weights/requirements.txt filter=lfs diff=lfs merge=lfs -text

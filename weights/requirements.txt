@@ -1,7 +1,3 @@
-easyocr
-einops==0.8.0
-opencv-python
-opencv-python-headless
-supervision==0.18.0
-timm
-ultralytics==8.3.70
+version https://git-lfs.github.com/spec/v1
+oid sha256:f4600c588dbf69d6de3f70e715ad8dd0b1de5c63271cbd993b7ce95e9903cded
+size 104
