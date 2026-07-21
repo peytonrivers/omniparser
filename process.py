@@ -43,7 +43,7 @@ DEVICE = torch.device('cuda')
 # @spaces.GPU
 # @torch.inference_mode()
 # @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
-def process(
+"""def process(
     image_input,
     box_threshold,
     iou_threshold,
@@ -74,7 +74,7 @@ def process(
     # parsed_content_list = str(parsed_content_list)
     print(f"Final Image: {image}")
     print(f"Parsed Content: {str(parsed_content_list)}")
-    return image, str(parsed_content_list)
+    return image, str(parsed_content_list)"""
 
 def image_processer(image_input,
     box_threshold,
