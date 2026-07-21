@@ -15,10 +15,16 @@ import time
 from paddleocr import PaddleOCR
 import json
 
+print("Loading YOLO...")
 yolo_model = get_yolo_model(model_path='weights/icon_detect/model.pt')
-caption_model_processor = get_caption_model_processor(model_name="florence2", model_name_or_path="weights/icon_caption_florence")
-# caption_model_processor = get_caption_model_processor(model_name="blip2", model_name_or_path="weights/icon_caption_blip2")
 
+print("Loading Florence...")
+caption_model_processor = get_caption_model_processor(
+    model_name="florence2",
+    model_name_or_path="weights/icon_caption_florence"
+)
+
+print("Loading PaddleOCR...")
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
 MARKDOWN = """
