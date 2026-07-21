@@ -156,7 +156,8 @@ def image_processer(image_input,
     image.save(new_buffer, format="PNG")
     new_bytes = new_buffer.getvalue()
     new_sendable_bytes = base64.b64encode(new_bytes).decode("utf-8")
-    return {"image": new_sendable_bytes, "bounding_boxes": boxes_details}
+    ending_time = time.perf_counter() - start_time()
+    return {"image": new_sendable_bytes, "bounding_boxes": boxes_details, "time": ending_time}
 
 """def image_processer(image_input,
     box_threshold,
