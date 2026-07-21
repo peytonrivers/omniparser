@@ -164,37 +164,7 @@ def image_processer(image_input,
     print(f"Starting Index: {starting_idx}")
     return {"filtered_boxes": filtered_boxes, "starting_idx": starting_idx}"""
 
-from PIL import Image
 
-image = Image.open(
-    "/Users/peytonrivers/Desktop/test_screenshot.png"
-).convert("RGB")
-
-buffer_bytes = io.BytesIO()
-
-image.save(buffer_bytes, format="PNG")
-
-final_bytes = buffer_bytes.getvalue()
-
-buffer_bytes.close()
-
-sendable_bytes = base64.b64encode(final_bytes).decode("utf-8")
-
-data = {"image_input": sendable_bytes, "box_threshold": 0.05, "iou_threshold": 0.10, "use_paddleocr": True, "imgsz": 640}
-
-def api_image_process():
-    response = requests.post("http://127.0.0.1:8000/image_process", json=data)
-    print(f"Response complete: {response}")
-    data2 = response.json()
-    image_bytes = data2["image"]
-    new_bytes = base64.b64decode(image_bytes.encode("utf-8"))
-    new_image = Image.open(io.BytesIO(new_bytes))
-    new_image.show()
-    print(data2["bounding_boxes"])
-    return response
-
-if __name__ == "__main__":
-    api_image_process()
 
 
 """
