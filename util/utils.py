@@ -427,12 +427,15 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     if ocr_bbox:
         ocr_bbox = torch.tensor(ocr_bbox) / torch.Tensor([w, h, w, h])
         ocr_bbox=ocr_bbox.tolist()
+        print(f"New ocr bbox: {ocr_bbox}")
     else:
         print('no ocr bbox!!!')
         ocr_bbox = None
 
     ocr_bbox_elem = [{'type': 'text', 'bbox':box, 'interactivity':False, 'content':txt, 'source': 'box_ocr_content_ocr'} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
     xyxy_elem = [{'type': 'icon', 'bbox':box, 'interactivity':True, 'content':None} for box in xyxy.tolist() if int_box_area(box, w, h) > 0]
+    print(f"total ocr bbox elem: {len(ocr_bbox_elem)}")
+    print(f"Total xyxy_elem: {len(xyxy_elem)}")
     filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
     print(f"Filtered boxes class: {type(filtered_boxes)}")
     
@@ -443,6 +446,7 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     starting_idx = next((i for i, box in enumerate(filtered_boxes_elem) if box['content'] is None), -1)
     filtered_boxes = torch.tensor([box['bbox'] for box in filtered_boxes_elem])
     print('len(filtered_boxes):', len(filtered_boxes), starting_idx)
+    print(f"Filtered Boxes after sorting: {filtered_boxes_elem}")
 
     # get parsed icon local semantics
     time1 = time.time()
@@ -468,8 +472,10 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     print('time to get parsed content:', time.time()-time1)
 
     filtered_boxes = box_convert(boxes=filtered_boxes, in_fmt="xyxy", out_fmt="cxcywh")
+    print(f"Filtered boxes after box_convert: {filtered_boxes}")
 
     phrases = [i for i in range(len(filtered_boxes))]
+    print(f"Phrases for annote: {phrases} ")
     
     # draw boxes
     if draw_bbox_config:
@@ -484,12 +490,8 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     if output_coord_in_ratio:
         label_coordinates = {k: [v[0]/w, v[1]/h, v[2]/w, v[3]/h] for k, v in label_coordinates.items()}
         assert w == annotated_frame.shape[1] and h == annotated_frame.shape[0]
-    print(f"encoded image: {type(encoded_image)}")
-    print(f"label coordinates: {type(label_coordinates)}")
-    print(f"filtered_boxes elem: {type(filtered_boxes_elem)}")
-    print(f"filteered boxes 1 type: {type(filtered_boxes_elem[0])}")
-    print(f"filtered boxese: {filtered_boxes_elem}")
 
+    print(f"Filtered boxes count: {len(filtered_boxes_elem)}")
     return encoded_image, label_coordinates, filtered_boxes_elem
 
 
