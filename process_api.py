@@ -26,7 +26,6 @@ def fastapi_start():
 @app.post("/image_process")
 def process_image(data: ImageProcesser):
     image_input = data.image_input
-    print(f"hello {image_input}")
     box_threshold = data.box_threshold
     iou_threshold = data.iou_threshold
     use_paddleocr = data.use_paddleocr
