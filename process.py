@@ -24,8 +24,7 @@ caption_model_processor = get_caption_model_processor(
     model_name_or_path="weights/icon_caption_florence"
 )
 
-print("Loading PaddleOCR...")
-ocr = PaddleOCR(use_angle_cls=True, lang='en')
+
 
 MARKDOWN = """
 # OmniParser for Pure Vision Based General GUI Agent 🔥
@@ -117,36 +116,11 @@ def image_processer(image_input,
         icon_item.update(current_item)
         boxes_details.append(icon_item)
         
-
+    print(f"Final boxes details: {boxes_details}")
     current_time3 = time.perf_counter()
     print(f"step 3 completed at: {current_time3 - start_time}")
     image = Image.open(io.BytesIO(base64.b64decode(dino_labled_img)))
     print('finish processing')
-    image_width = image.width
-    image_height = image.height
-
-    for l in range(len(boxes_details)):
-        current_box = boxes_details[l]
-        current_coordinates = current_box["bbox"]
-        content = current_box["content"]
-        if not content:
-            x1 = current_coordinates[0] * image_width
-            y1 = current_coordinates[1] * image_height
-            x2 = current_coordinates[2] * image_width
-            y2 = current_coordinates[3] * image_height
-            cropped_image = image.crop([x1, y1, x2, y2])
-            cropped_image_array = np.array(cropped_image)
-            result = ocr.ocr(cropped_image_array, cls=True)
-
-            detected_text = ""
-
-            if result and result[0]:
-                words = []
-                for line in result[0]:
-                    words.append(line[1][0])   # line[1][0] is the recognized text
-                detected_text = " ".join(words)
-
-            current_box["content"] = detected_text
 
     # parsed_content_list = str(parsed_content_list)
     print(f"Final Image: {image}")

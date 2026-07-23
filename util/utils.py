@@ -427,26 +427,19 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     if ocr_bbox:
         ocr_bbox = torch.tensor(ocr_bbox) / torch.Tensor([w, h, w, h])
         ocr_bbox=ocr_bbox.tolist()
-        print(f"New ocr bbox: {ocr_bbox}")
     else:
         print('no ocr bbox!!!')
         ocr_bbox = None
 
     ocr_bbox_elem = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
     xyxy_elem = [{'type': 'icon', 'bbox':box, 'content':None} for box in xyxy.tolist() if int_box_area(box, w, h) > 0]
-    print(f"total ocr bbox elem: {len(ocr_bbox_elem)}")
-    print(f"Total xyxy_elem: {len(xyxy_elem)}")
     filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
-    print(f"Filtered boxes class: {type(filtered_boxes)}")
     
     # sort the filtered_boxes so that the one with 'content': None is at the end, and get the index of the first 'content': None
     filtered_boxes_elem = sorted(filtered_boxes, key=lambda x: x['content'] is None)
-    print(f"Filtered boxes elem class: {type(filtered_boxes_elem)}")
     # get the index of the first 'content': None
     starting_idx = next((i for i, box in enumerate(filtered_boxes_elem) if box['content'] is None), -1)
     filtered_boxes = torch.tensor([box['bbox'] for box in filtered_boxes_elem])
-    print('len(filtered_boxes):', len(filtered_boxes), starting_idx)
-    print(f"Filtered Boxes after sorting: {filtered_boxes_elem}")
 
     # get parsed icon local semantics
     time1 = time.time()
@@ -472,10 +465,8 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     print('time to get parsed content:', time.time()-time1)
 
     filtered_boxes = box_convert(boxes=filtered_boxes, in_fmt="xyxy", out_fmt="cxcywh")
-    print(f"Filtered boxes after box_convert: {filtered_boxes}")
 
     phrases = [i for i in range(len(filtered_boxes))]
-    print(f"Phrases for annote: {phrases} ")
     
     # draw boxes
     if draw_bbox_config:
@@ -484,6 +475,8 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         annotated_frame, label_coordinates = annotate(image_source=image_source, boxes=filtered_boxes, logits=logits, phrases=phrases, text_scale=text_scale, text_padding=text_padding)
     
     pil_img = Image.fromarray(annotated_frame)
+    pil_img_width = pil_img.width
+    pil_img_height = pil_img.height
     buffered = io.BytesIO()
     pil_img.save(buffered, format="PNG")
     encoded_image = base64.b64encode(buffered.getvalue()).decode('ascii')
@@ -491,7 +484,28 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         label_coordinates = {k: [v[0]/w, v[1]/h, v[2]/w, v[3]/h] for k, v in label_coordinates.items()}
         assert w == annotated_frame.shape[1] and h == annotated_frame.shape[0]
 
-    print(f"Filtered boxes count: {len(filtered_boxes_elem)}")
+    for l in range(len(filtered_boxes_elem)):
+        current_box = filtered_boxes_elem[l]
+        current_coordinates = current_box["bbox"]
+        content = current_box["content"]
+        if not content:
+            x1 = current_coordinates[0] * pil_img_width
+            y1 = current_coordinates[1] * pil_img_height
+            x2 = current_coordinates[2] * pil_img_width
+            y2 = current_coordinates[3] * pil_img_height
+            cropped_image = pil_img.crop([x1, y1, x2, y2])
+            cropped_image_array = np.array(cropped_image)
+            result = paddle_ocr.ocr(cropped_image_array, cls=True)
+
+            detected_text = ""
+
+            if result and result[0]:
+                words = []
+                for line in result[0]:
+                    words.append(line[1][0])   # line[1][0] is the recognized text
+                detected_text = " ".join(words)
+
+            current_box["content"] = detected_text
     return encoded_image, label_coordinates, filtered_boxes_elem
 
 
