@@ -19,7 +19,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import easyocr
 from paddleocr import PaddleOCR
-reader = easyocr.Reader(['en'])
+# reader = easyocr.Reader(['en'])
 paddle_ocr = PaddleOCR(
     lang='en',  # other lang also available
     use_angle_cls=False,
@@ -540,12 +540,12 @@ def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, out
         result = paddle_ocr.ocr(image_np, cls=False)[0]
         coord = [item[0] for item in result if item[1][1] > text_threshold]
         text = [item[1][0] for item in result if item[1][1] > text_threshold]
-    else:  # EasyOCR
+    """else:  # EasyOCR
         if easyocr_args is None:
             easyocr_args = {}
         result = reader.readtext(image_np, **easyocr_args)
         coord = [item[0] for item in result]
-        text = [item[1] for item in result]
+        text = [item[1] for item in result]"""
     if display_img:
         opencv_img = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
         bb = []
