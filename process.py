@@ -101,14 +101,14 @@ def image_processer(image_input,
     # import pdb; pdb.set_trace()
 
     ocr_bbox_rslt, is_goal_filtered = check_ocr_box(image_input, display_img = False, output_bb_format='xyxy', goal_filtering=None, easyocr_args={'paragraph': False, 'text_threshold':0.9}, use_paddleocr=use_paddleocr)
-    print(f"OCR bbox result: {ocr_bbox_rslt}")
-    print(f"Is goal filtered: {is_goal_filtered}")
     current_time = time.perf_counter()
     print(f"Step 1 completed at: {current_time - start_time}")
     text, ocr_bbox = ocr_bbox_rslt
     current_time2 = time.perf_counter()
     print(f"Step 2 completed at: {current_time2 - start_time}")
     dino_labled_img, label_coordinates, parsed_content_list = get_som_labeled_img(image_input, yolo_model, BOX_TRESHOLD = box_threshold, output_coord_in_ratio=True, ocr_bbox=ocr_bbox,draw_bbox_config=draw_bbox_config, ocr_text=text,iou_threshold=iou_threshold, imgsz=imgsz,)
+    image_input.close()
+    encoded_bytes = dino_labled_img
     boxes_details = []
     for i in range(len(parsed_content_list)):
         current_item = parsed_content_list[i]
@@ -116,18 +116,8 @@ def image_processer(image_input,
         icon_item.update(current_item)
         boxes_details.append(icon_item)
         
-    print(f"Final boxes details: {boxes_details}")
     current_time3 = time.perf_counter()
     print(f"step 3 completed at: {current_time3 - start_time}")
-    image = Image.open(io.BytesIO(base64.b64decode(dino_labled_img)))
     print('finish processing')
-
-    # parsed_content_list = str(parsed_content_list)
-    print(f"Final Image: {image}")
-    image.show()
-    new_buffer = io.BytesIO()
-    image.save(new_buffer, format="PNG")
-    new_bytes = new_buffer.getvalue()
-    new_sendable_bytes = base64.b64encode(new_bytes).decode("utf-8")
     ending_time = time.perf_counter() - start_time
-    return {"image": new_sendable_bytes, "bounding_boxes": boxes_details, "time": ending_time}
+    return {"encoded_bytes": encoded_bytes, "boxes_details": boxes_details, "time": ending_time}
