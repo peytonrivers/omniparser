@@ -17,12 +17,6 @@ import json
 import psutil
 memory = psutil.virtual_memory()
 
-engine = RapidOCR()
-
-img_url = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/resources/test_files/ch_en_num.jpg"
-result = engine(img_url)
-print(result)
-
 print("Loading YOLO...")
 yolo_model = get_yolo_model(model_path='weights/icon_detect/model.pt')
 
@@ -111,17 +105,14 @@ def image_processer(image_input,
     ocr_bbox_rslt, is_goal_filtered = check_ocr_box(image_input, display_img = False, output_bb_format='xyxy', goal_filtering=None, easyocr_args={'paragraph': False, 'text_threshold':0.9}, use_paddleocr=use_paddleocr)
     print(f"Before get some labeled img and after check ocr: {memory.percent}%")
     print(f"Check memory")
-    time.sleep(20)
     current_time = time.perf_counter()
     print(f"Step 1 completed at: {current_time - start_time}")
     text, ocr_bbox = ocr_bbox_rslt
     current_time2 = time.perf_counter()
     print(f"Step 2 completed at: {current_time2 - start_time}")
     print(f"Check memory before get som labeled img")
-    print(time.sleep(5))
     dino_labled_img, label_coordinates, parsed_content_list = get_som_labeled_img(image_input, yolo_model, BOX_TRESHOLD = box_threshold, output_coord_in_ratio=True, ocr_bbox=ocr_bbox,draw_bbox_config=draw_bbox_config, ocr_text=text,iou_threshold=iou_threshold, imgsz=imgsz,)
     print(f"Check memory 2")
-    time.sleep(20)
     print(f"After get some labeled img memory percent: {memory.percent}%")
     image_input.close()
     encoded_bytes = dino_labled_img
@@ -137,3 +128,18 @@ def image_processer(image_input,
     print('finish processing')
     ending_time = time.perf_counter() - start_time
     return {"encoded_bytes": encoded_bytes, "boxes_details": boxes_details, "time": ending_time}
+
+file_path = "/Users/peytonrivers/Desktop/test_screenshot.png"
+
+img = Image.open(file_path)
+
+buffer = io.BytesIO()
+
+new_image = img.save(buffer, format="PNG")
+new_bytes = buffer.getvalue()
+print(type(new_bytes))
+encoded_bytes = base64.b64encode(new_bytes).decode("utf-8")
+
+print(img)
+
+image_processer(encoded_bytes, 0.05, 0.10, True, 640)

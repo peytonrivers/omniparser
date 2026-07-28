@@ -21,12 +21,15 @@ import easyocr
 from paddleocr import PaddleOCR
 import gc
 
-from paddleocr import TextDetection
+from rapidocr_onnxruntime import RapidOCR
 
 import numpy as np
 import psutil
 # reader = easyocr.Reader(['en'])
-paddle_ocr = PaddleOCR(
+
+engine = RapidOCR()
+
+"""paddle_ocr = PaddleOCR(
     lang='en',  # other lang also available
     use_angle_cls=True,
     use_gpu=False,  # using cuda will conflict with pytorch in the same process
@@ -34,7 +37,7 @@ paddle_ocr = PaddleOCR(
     max_batch_size=1024,
     use_dilation=True,  # improves accuracy
     det_db_score_mode='slow',  # improves accuracy
-    rec_batch_num=1024)
+    rec_batch_num=1024)"""
 import time
 import base64
 
@@ -528,14 +531,6 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
             crop_height = y2 - y1
             crop_pixels = crop_width * crop_height
 
-            print(
-                f"\nLoop {l}\n"
-                f"Box: {current_box}\n"
-                f"Coordinates: ({x1}, {y1}, {x2}, {y2})\n"
-                f"Crop size: {crop_width}x{crop_height}\n"
-                f"Crop pixels: {crop_pixels:,}\n"
-                f"RAM before crop: {get_memory_gb():.2f} GB"
-            )
 
             # Prevent invalid crops from being passed into OCR.
             if crop_width <= 0 or crop_height <= 0:
@@ -544,30 +539,11 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
 
             cropped_image = pil_img.crop((x1, y1, x2, y2))
 
-            print(
-                f"RAM after PIL crop: "
-                f"{get_memory_gb():.2f} GB"
-            )
-
             cropped_image_array = np.asarray(cropped_image)
 
-            print(
-                f"Array shape: {cropped_image_array.shape}\n"
-                f"Array dtype: {cropped_image_array.dtype}\n"
-                f"Array storage: "
-                f"{cropped_image_array.nbytes / (1024 ** 2):.4f} MB\n"
-                f"RAM before OCR: {get_memory_gb():.2f} GB"
-            )
 
-            result = paddle_ocr.ocr(
-                cropped_image_array,
-                cls=True
-            )
+            result = engine(cropped_image_array)[0]
 
-            print(
-                f"RAM after OCR: {get_memory_gb():.2f} GB\n"
-                f"Outer result storage: {sys.getsizeof(result)} bytes"
-            )
 
             detected_text = ""
 
@@ -589,18 +565,8 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
 
             collected_objects = gc.collect()
 
-            print(
-                f"Garbage-collected objects: {collected_objects}\n"
-                f"RAM after delete and gc.collect(): "
-                f"{get_memory_gb():.2f} GB\n"
-                f"Completed loop {l}"
-            )
 
 
-    print(
-        "Check memory for custom for loop of getting the text\n"
-        f"Final RAM: {get_memory_gb():.2f} GB"
-    )
 
     return encoded_image, label_coordinates, filtered_boxes_elem
 
@@ -628,20 +594,9 @@ def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, out
         image_source = image_source.convert('RGB')
     image_np = np.array(image_source)
     w, h = image_source.size
-    if use_paddleocr:
-        if easyocr_args is None:
-            text_threshold = 0.5
-        else:
-            text_threshold = easyocr_args['text_threshold']
-        result = paddle_ocr.ocr(image_np, cls=False)[0]
-        coord = [item[0] for item in result if item[1][1] > text_threshold]
-        text = [item[1][0] for item in result if item[1][1] > text_threshold]
-    """else:  # EasyOCR
-        if easyocr_args is None:
-            easyocr_args = {}
-        result = reader.readtext(image_np, **easyocr_args)
-        coord = [item[0] for item in result]
-        text = [item[1] for item in result]"""
+    result = engine(image_np)[0]
+    coord = [item[0] for item in result if item[2] > 0.5]
+    text = [item[1] for item in result if item[2] > 0.5]
     if display_img:
         opencv_img = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
         bb = []
@@ -657,3 +612,41 @@ def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, out
         elif output_bb_format == 'xyxy':
             bb = [get_xyxy(item) for item in coord]
     return (text, bb), goal_filtering
+
+"""def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, output_bb_format='xywh', goal_filtering=None, easyocr_args=None, use_paddleocr=False):
+    if isinstance(image_source, str):
+        image_source = Image.open(image_source)
+    if image_source.mode == 'RGBA':
+        # Convert RGBA to RGB to avoid alpha channel issues
+        image_source = image_source.convert('RGB')
+    image_np = np.array(image_source)
+    w, h = image_source.size
+    if use_paddleocr:
+        if easyocr_args is None:
+            text_threshold = 0.5
+        else:
+            text_threshold = easyocr_args['text_threshold']
+        result = paddle_ocr.ocr(image_np, cls=False)[0]
+        coord = [item[0] for item in result if item[1][1] > text_threshold]
+        text = [item[1][0] for item in result if item[1][1] > text_threshold]
+    else:  # EasyOCR
+        if easyocr_args is None:
+            easyocr_args = {}
+        result = reader.readtext(image_np, **easyocr_args)
+        coord = [item[0] for item in result]
+        text = [item[1] for item in result]
+    if display_img:
+        opencv_img = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        bb = []
+        for item in coord:
+            x, y, a, b = get_xywh(item)
+            bb.append((x, y, a, b))
+            cv2.rectangle(opencv_img, (x, y), (x+a, y+b), (0, 255, 0), 2)
+        #  matplotlib expects RGB
+        plt.imshow(cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB))
+    else:
+        if output_bb_format == 'xywh':
+            bb = [get_xywh(item) for item in coord]
+        elif output_bb_format == 'xyxy':
+            bb = [get_xyxy(item) for item in coord]
+    return (text, bb), goal_filtering"""
