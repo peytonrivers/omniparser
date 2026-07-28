@@ -14,6 +14,14 @@ from PIL import Image
 import time
 from paddleocr import PaddleOCR
 import json
+import psutil
+memory = psutil.virtual_memory()
+
+engine = RapidOCR()
+
+img_url = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/resources/test_files/ch_en_num.jpg"
+result = engine(img_url)
+print(result)
 
 print("Loading YOLO...")
 yolo_model = get_yolo_model(model_path='weights/icon_detect/model.pt')
@@ -99,14 +107,22 @@ def image_processer(image_input,
         'thickness': max(int(3 * box_overlay_ratio), 1),
     }
     # import pdb; pdb.set_trace()
-
+    print(f"Before Check ocr memory percent: {memory.percent}%")
     ocr_bbox_rslt, is_goal_filtered = check_ocr_box(image_input, display_img = False, output_bb_format='xyxy', goal_filtering=None, easyocr_args={'paragraph': False, 'text_threshold':0.9}, use_paddleocr=use_paddleocr)
+    print(f"Before get some labeled img and after check ocr: {memory.percent}%")
+    print(f"Check memory")
+    time.sleep(20)
     current_time = time.perf_counter()
     print(f"Step 1 completed at: {current_time - start_time}")
     text, ocr_bbox = ocr_bbox_rslt
     current_time2 = time.perf_counter()
     print(f"Step 2 completed at: {current_time2 - start_time}")
+    print(f"Check memory before get som labeled img")
+    print(time.sleep(5))
     dino_labled_img, label_coordinates, parsed_content_list = get_som_labeled_img(image_input, yolo_model, BOX_TRESHOLD = box_threshold, output_coord_in_ratio=True, ocr_bbox=ocr_bbox,draw_bbox_config=draw_bbox_config, ocr_text=text,iou_threshold=iou_threshold, imgsz=imgsz,)
+    print(f"Check memory 2")
+    time.sleep(20)
+    print(f"After get some labeled img memory percent: {memory.percent}%")
     image_input.close()
     encoded_bytes = dino_labled_img
     boxes_details = []

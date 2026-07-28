@@ -1,5 +1,4 @@
 # from ultralytics import YOLO
-import os
 import io
 import base64
 import time
@@ -13,12 +12,19 @@ from openai import AzureOpenAI
 import json
 import sys
 import os
+import sys
 import cv2
 import numpy as np
 # %matplotlib inline
 from matplotlib import pyplot as plt
 import easyocr
 from paddleocr import PaddleOCR
+import gc
+
+from paddleocr import TextDetection
+
+import numpy as np
+import psutil
 # reader = easyocr.Reader(['en'])
 paddle_ocr = PaddleOCR(
     lang='en',  # other lang also available
@@ -419,8 +425,10 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         imgsz = (h, w)
     # print('image size:', w, h)
     xyxy, logits, phrases = predict_yolo(model=model, image=image_source, box_threshold=BOX_TRESHOLD, imgsz=imgsz, scale_img=scale_img, iou_threshold=0.1)
+    print(f"Check memory for predict yolo")
     xyxy = xyxy / torch.Tensor([w, h, w, h]).to(xyxy.device)
     image_source = np.asarray(image_source)
+    print(f"Check memory for predict torch tensor and np.asarray")
     phrases = [str(i) for i in range(len(phrases))]
 
     # annotate the image with labels
@@ -434,12 +442,15 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     ocr_bbox_elem = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
     xyxy_elem = [{'type': 'icon', 'bbox':box, 'content':None} for box in xyxy.tolist() if int_box_area(box, w, h) > 0]
     filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
+    print(f"Check memory for remove overlap new")
     
     # sort the filtered_boxes so that the one with 'content': None is at the end, and get the index of the first 'content': None
     filtered_boxes_elem = sorted(filtered_boxes, key=lambda x: x['content'] is None)
     # get the index of the first 'content': None
     starting_idx = next((i for i, box in enumerate(filtered_boxes_elem) if box['content'] is None), -1)
     filtered_boxes = torch.tensor([box['bbox'] for box in filtered_boxes_elem])
+    print(f"Check memory for torch.tensor of filtered boxes")
+
 
     # get parsed icon local semantics
     time1 = time.time()
@@ -465,6 +476,7 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     print('time to get parsed content:', time.time()-time1)
 
     filtered_boxes = box_convert(boxes=filtered_boxes, in_fmt="xyxy", out_fmt="cxcywh")
+    print(f"Check memory for box convert")
 
     phrases = [i for i in range(len(filtered_boxes))]
     
@@ -473,39 +485,123 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         annotated_frame, label_coordinates = annotate(image_source=image_source, boxes=filtered_boxes, logits=logits, phrases=phrases, **draw_bbox_config)
     else:
         annotated_frame, label_coordinates = annotate(image_source=image_source, boxes=filtered_boxes, logits=logits, phrases=phrases, text_scale=text_scale, text_padding=text_padding)
-    
+    print(f"Check memory for annote")
     pil_img = Image.fromarray(annotated_frame)
     pil_img_width = pil_img.width
     pil_img_height = pil_img.height
     buffered = io.BytesIO()
     pil_img.save(buffered, format="PNG")
     encoded_image = base64.b64encode(buffered.getvalue()).decode('ascii')
+    print(f"Check memory for encoded image")
     if output_coord_in_ratio:
         label_coordinates = {k: [v[0]/w, v[1]/h, v[2]/w, v[3]/h] for k, v in label_coordinates.items()}
         assert w == annotated_frame.shape[1] and h == annotated_frame.shape[0]
+    print(f"Check memory for label coordinates")
+
+    process = psutil.Process(os.getpid())
+
+    def get_memory_gb():
+        """Return the current Python process RAM usage in GB."""
+        return process.memory_info().rss / (1024 ** 3)
+
+
+    print("Check memory for label coordinates")
 
     for l in range(len(filtered_boxes_elem)):
         current_box = filtered_boxes_elem[l]
         current_coordinates = current_box["bbox"]
         content = current_box["content"]
+
         if not content:
-            x1 = current_coordinates[0] * pil_img_width
-            y1 = current_coordinates[1] * pil_img_height
-            x2 = current_coordinates[2] * pil_img_width
-            y2 = current_coordinates[3] * pil_img_height
-            cropped_image = pil_img.crop([x1, y1, x2, y2])
-            cropped_image_array = np.array(cropped_image)
-            result = paddle_ocr.ocr(cropped_image_array, cls=True)
+            x1 = int(current_coordinates[0] * pil_img_width)
+            y1 = int(current_coordinates[1] * pil_img_height)
+            x2 = int(current_coordinates[2] * pil_img_width)
+            y2 = int(current_coordinates[3] * pil_img_height)
+
+            # Keep coordinates inside the original image.
+            x1 = max(0, min(x1, pil_img_width))
+            y1 = max(0, min(y1, pil_img_height))
+            x2 = max(0, min(x2, pil_img_width))
+            y2 = max(0, min(y2, pil_img_height))
+
+            crop_width = x2 - x1
+            crop_height = y2 - y1
+            crop_pixels = crop_width * crop_height
+
+            print(
+                f"\nLoop {l}\n"
+                f"Box: {current_box}\n"
+                f"Coordinates: ({x1}, {y1}, {x2}, {y2})\n"
+                f"Crop size: {crop_width}x{crop_height}\n"
+                f"Crop pixels: {crop_pixels:,}\n"
+                f"RAM before crop: {get_memory_gb():.2f} GB"
+            )
+
+            # Prevent invalid crops from being passed into OCR.
+            if crop_width <= 0 or crop_height <= 0:
+                print(f"Skipping invalid crop on loop {l}")
+                continue
+
+            cropped_image = pil_img.crop((x1, y1, x2, y2))
+
+            print(
+                f"RAM after PIL crop: "
+                f"{get_memory_gb():.2f} GB"
+            )
+
+            cropped_image_array = np.asarray(cropped_image)
+
+            print(
+                f"Array shape: {cropped_image_array.shape}\n"
+                f"Array dtype: {cropped_image_array.dtype}\n"
+                f"Array storage: "
+                f"{cropped_image_array.nbytes / (1024 ** 2):.4f} MB\n"
+                f"RAM before OCR: {get_memory_gb():.2f} GB"
+            )
+
+            result = paddle_ocr.ocr(
+                cropped_image_array,
+                cls=True
+            )
+
+            print(
+                f"RAM after OCR: {get_memory_gb():.2f} GB\n"
+                f"Outer result storage: {sys.getsizeof(result)} bytes"
+            )
 
             detected_text = ""
 
             if result and result[0]:
                 words = []
+
                 for line in result[0]:
-                    words.append(line[1][0])   # line[1][0] is the recognized text
+                    words.append(line[1][0])
+
                 detected_text = " ".join(words)
 
             current_box["content"] = detected_text
+
+            print(f"Detected text: {detected_text!r}")
+
+            del result
+            del cropped_image_array
+            del cropped_image
+
+            collected_objects = gc.collect()
+
+            print(
+                f"Garbage-collected objects: {collected_objects}\n"
+                f"RAM after delete and gc.collect(): "
+                f"{get_memory_gb():.2f} GB\n"
+                f"Completed loop {l}"
+            )
+
+
+    print(
+        "Check memory for custom for loop of getting the text\n"
+        f"Final RAM: {get_memory_gb():.2f} GB"
+    )
+
     return encoded_image, label_coordinates, filtered_boxes_elem
 
 
