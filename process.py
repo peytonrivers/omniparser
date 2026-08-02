@@ -128,18 +128,3 @@ def image_processer(image_input,
     print('finish processing')
     ending_time = time.perf_counter() - start_time
     return {"encoded_bytes": encoded_bytes, "boxes_details": boxes_details, "time": ending_time}
-
-file_path = "/Users/peytonrivers/Desktop/test_screenshot.png"
-
-img = Image.open(file_path)
-
-buffer = io.BytesIO()
-
-new_image = img.save(buffer, format="PNG")
-new_bytes = buffer.getvalue()
-print(type(new_bytes))
-encoded_bytes = base64.b64encode(new_bytes).decode("utf-8")
-
-print(img)
-
-image_processer(encoded_bytes, 0.05, 0.10, True, 640)

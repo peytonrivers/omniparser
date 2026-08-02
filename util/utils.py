@@ -20,7 +20,7 @@ from matplotlib import pyplot as plt
 import easyocr
 from paddleocr import PaddleOCR
 import gc
-
+print("module import error")
 from rapidocr_onnxruntime import RapidOCR
 
 import numpy as np
@@ -548,25 +548,21 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
             detected_text = ""
 
             if result and result[0]:
-                words = []
-
-                for line in result[0]:
-                    words.append(line[1][0])
-
-                detected_text = " ".join(words)
-
-            current_box["content"] = detected_text
-
-            print(f"Detected text: {detected_text!r}")
+                total_text = ""
+                for i in range(len(result)):
+                    current_item = result[i]
+                    detected_text = current_item[1]
+                    if detected_text:
+                        total_text += " "
+                        total_text += detected_text
+                
+                current_box["content"] = total_text
 
             del result
             del cropped_image_array
             del cropped_image
 
             collected_objects = gc.collect()
-
-
-
 
     return encoded_image, label_coordinates, filtered_boxes_elem
 
