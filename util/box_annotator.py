@@ -2,6 +2,8 @@ from typing import List, Optional, Union, Tuple
 
 import cv2
 import numpy as np
+from PIL import Image, ImageFont, ImageDraw
+import time
 
 from supervision.detection.core import Detections
 from supervision.draw.color import Color, ColorPalette
@@ -27,10 +29,10 @@ class BoxAnnotator:
     def __init__(
         self,
         color: Union[Color, ColorPalette] = ColorPalette.DEFAULT,
-        thickness: int = 3, # 1 for seeclick 2 for mind2web and 3 for demo
+        thickness: int = 1, # 1 for seeclick 2 for mind2web and 3 for demo
         text_color: Color = Color.BLACK,
-        text_scale: float = 0.5, # 0.8 for mobile/web, 0.3 for desktop # 0.4 for mind2web
-        text_thickness: int = 2, #1, # 2 for demo
+        text_scale: float = 0.6, # 0.8 for mobile/web, 0.3 for desktop # 0.4 for mind2web
+        text_thickness: int = 3, #1, # 2 for demo
         text_padding: int = 10,
         avoid_overlap: bool = True,
     ):
@@ -87,6 +89,7 @@ class BoxAnnotator:
         font = cv2.FONT_HERSHEY_SIMPLEX
         for i in range(len(detections)):
             x1, y1, x2, y2 = detections.xyxy[i].astype(int)
+            print(f"x1: {x1}, x2: {x2}, y1: {y1}, y2: {y2}")
             class_id = (
                 detections.class_id[i] if detections.class_id is not None else None
             )
@@ -111,14 +114,15 @@ class BoxAnnotator:
                 if (labels is None or len(detections) != len(labels))
                 else labels[i]
             )
-
             text_width, text_height = cv2.getTextSize(
                 text=text,
                 fontFace=font,
                 fontScale=self.text_scale,
                 thickness=self.text_thickness,
             )[0]
-
+            width, height = image_size
+            text_width = 12
+            text_height = 7
             if not self.avoid_overlap:
                 text_x = x1 + self.text_padding
                 text_y = y1 - self.text_padding
@@ -134,9 +138,10 @@ class BoxAnnotator:
                 # text_background_y1 = y1
                 # text_background_x2 = x1
                 # text_background_y2 = y1 + 2 * self.text_padding + text_height
+
             else:
                 text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2 = get_optimal_label_pos(self.text_padding, text_width, text_height, x1, y1, x2, y2, detections, image_size)
-
+            print(f"text x1: {text_background_x1}, text x2: {text_background_x2}, text y1: {text_background_y1}, text y2: {text_background_y2}")
             cv2.rectangle(
                 img=scene,
                 pt1=(text_background_x1, text_background_y1),
@@ -148,7 +153,14 @@ class BoxAnnotator:
             box_color = color.as_rgb()
             luminance = 0.299 * box_color[0] + 0.587 * box_color[1] + 0.114 * box_color[2]
             text_color = (0,0,0) if luminance > 160 else (255,255,255)
-            cv2.putText(
+            img = Image.fromarray(scene)
+            image_font = ImageFont.truetype("/Users/peytonrivers/downloads/roboto/Roboto-Italic-VariableFont_wdth,wght.ttf", 10)
+            draw = ImageDraw.Draw(img)
+            text_y = text_y - 10
+            draw.text(xy=(text_x, text_y), text=text, font=image_font, fill=text_color)
+            scene = np.array(img)
+            print(f"text: {text}")
+            """cv2.putText(
                 img=scene,
                 text=text,
                 org=(text_x, text_y),
@@ -158,7 +170,7 @@ class BoxAnnotator:
                 color=text_color,
                 thickness=self.text_thickness,
                 lineType=cv2.LINE_AA,
-            )
+            )"""
         return scene
     
 
@@ -211,8 +223,10 @@ def get_optimal_label_pos(text_padding, text_width, text_height, x1, y1, x2, y2,
     text_background_x1 = x1
     text_background_y1 = y1 - 2 * text_padding - text_height
 
-    text_background_x2 = x1 + 2 * text_padding + text_width
-    text_background_y2 = y1
+    # text_background_x2 = x1 + 2 * text_padding + text_width
+    text_background_x2 = text_background_x1 + 20
+    # text_background_y2 = y1
+    text_background_y2 = text_background_y1 + 9
     is_overlap = get_is_overlap(detections, text_background_x1, text_background_y1, text_background_x2, text_background_y2, image_size)
     if not is_overlap:
         return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
@@ -224,8 +238,10 @@ def get_optimal_label_pos(text_padding, text_width, text_height, x1, y1, x2, y2,
     text_background_x1 = x1 - 2 * text_padding - text_width
     text_background_y1 = y1
 
-    text_background_x2 = x1
-    text_background_y2 = y1 + 2 * text_padding + text_height
+    # text_background_x2 = x1 + 2 * text_padding + text_width
+    text_background_x2 = text_background_x1 + 15
+    # text_background_y2 = y1
+    text_background_y2 = text_background_y1 + 10
     is_overlap = get_is_overlap(detections, text_background_x1, text_background_y1, text_background_x2, text_background_y2, image_size)
     if not is_overlap:
         return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
@@ -238,8 +254,10 @@ def get_optimal_label_pos(text_padding, text_width, text_height, x1, y1, x2, y2,
     text_background_x1 = x2
     text_background_y1 = y1
 
-    text_background_x2 = x2 + 2 * text_padding + text_width
-    text_background_y2 = y1 + 2 * text_padding + text_height
+    # text_background_x2 = x1 + 2 * text_padding + text_width
+    text_background_x2 = text_background_x1 + 15
+    # text_background_y2 = y1
+    text_background_y2 = text_background_y1 + 10
 
     is_overlap = get_is_overlap(detections, text_background_x1, text_background_y1, text_background_x2, text_background_y2, image_size)
     if not is_overlap:
@@ -252,11 +270,14 @@ def get_optimal_label_pos(text_padding, text_width, text_height, x1, y1, x2, y2,
     text_background_x1 = x2 - 2 * text_padding - text_width
     text_background_y1 = y1 - 2 * text_padding - text_height
 
-    text_background_x2 = x2
-    text_background_y2 = y1
+    # text_background_x2 = x1 + 2 * text_padding + text_width
+    text_background_x2 = text_background_x1 + 15
+    # text_background_y2 = y1
+    text_background_y2 = text_background_y1 + 10
 
     is_overlap = get_is_overlap(detections, text_background_x1, text_background_y1, text_background_x2, text_background_y2, image_size)
     if not is_overlap:
         return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
-
+    print(f"text background x1: {text_background_x1} text background x2: {text_background_x2}")
+    print(f"text background y1: {text_background_y1} text background y2: {text_background_y2}")
     return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
