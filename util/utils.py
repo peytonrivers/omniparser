@@ -20,7 +20,7 @@ from matplotlib import pyplot as plt
 import easyocr
 from paddleocr import PaddleOCR
 import gc
-print("module import error")
+
 from rapidocr_onnxruntime import RapidOCR
 
 import numpy as np
@@ -412,6 +412,50 @@ def int_box_area(box, w, h):
     int_box = [int(x1*w), int(y1*h), int(x2*w), int(y2*h)]
     area = (int_box[2] - int_box[0]) * (int_box[3] - int_box[1])
     return area
+def rapidocr_process(image_source, iou_threshold):
+    image_array = np.asarray(image_source)
+    h, w = image_array.shape[:2]
+
+    image = Image.fromarray(image_array).convert("RGB")
+    draw = ImageDraw.Draw(image)
+
+    result, elapse = engine(image_array)
+
+    if result is None:
+        image.show()
+        return []
+
+    rapidocr_bbox_elem = []
+
+    for bbox, text, confidence in result:
+        if confidence < iou_threshold:
+            continue
+
+        bbox = np.asarray(bbox)
+
+        x1 = float(np.min(bbox[:, 0]))
+        y1 = float(np.min(bbox[:, 1]))
+        x2 = float(np.max(bbox[:, 0]))
+        y2 = float(np.max(bbox[:, 1]))
+
+        normalized_bbox = [
+            x1 / w,
+            y1 / h,
+            x2 / w,
+            y2 / h
+        ]
+
+        if int_box_area(normalized_bbox, w, h) <= 0:
+            continue
+
+        rapidocr_bbox_elem.append({
+            "type": "text",
+            "bbox": normalized_bbox,
+            "content": text
+        })
+
+
+    return rapidocr_bbox_elem
 
 def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_TRESHOLD=0.01, output_coord_in_ratio=False, ocr_bbox=None, text_scale=0.2, text_padding=2, draw_bbox_config=None, ocr_text=[], use_local_semantics=True, iou_threshold=0.9,prompt=None, scale_img=False, imgsz=None, batch_size=128):
     """Process either an image path or Image object
@@ -428,7 +472,6 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         imgsz = (h, w)
     # print('image size:', w, h)
     xyxy, logits, phrases = predict_yolo(model=model, image=image_source, box_threshold=BOX_TRESHOLD, imgsz=imgsz, scale_img=scale_img, iou_threshold=0.1)
-    print(f"Check memory for predict yolo")
     xyxy = xyxy / torch.Tensor([w, h, w, h]).to(xyxy.device)
     image_source = np.asarray(image_source)
     print(f"Check memory for predict torch tensor and np.asarray")
@@ -442,10 +485,11 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         print('no ocr bbox!!!')
         ocr_bbox = None
 
-    ocr_bbox_elem = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
+    ocr_bbox_elem = rapidocr_process(image_source=image_source, iou_threshold=iou_threshold)
+    ocr_bbox_elem2 = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
     xyxy_elem = [{'type': 'icon', 'bbox':box, 'content':None} for box in xyxy.tolist() if int_box_area(box, w, h) > 0]
-    filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
-    print(f"Check memory for remove overlap new")
+    filtered_boxes = ocr_bbox_elem + xyxy_elem
+    # filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
     
     # sort the filtered_boxes so that the one with 'content': None is at the end, and get the index of the first 'content': None
     filtered_boxes_elem = sorted(filtered_boxes, key=lambda x: x['content'] is None)
@@ -453,7 +497,6 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     starting_idx = next((i for i, box in enumerate(filtered_boxes_elem) if box['content'] is None), -1)
     filtered_boxes = torch.tensor([box['bbox'] for box in filtered_boxes_elem])
     print(f"Check memory for torch.tensor of filtered boxes")
-
 
     # get parsed icon local semantics
     time1 = time.time()
@@ -479,7 +522,6 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     print('time to get parsed content:', time.time()-time1)
 
     filtered_boxes = box_convert(boxes=filtered_boxes, in_fmt="xyxy", out_fmt="cxcywh")
-    print(f"Check memory for box convert")
 
     phrases = [i for i in range(len(filtered_boxes))]
     
@@ -488,18 +530,15 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         annotated_frame, label_coordinates = annotate(image_source=image_source, boxes=filtered_boxes, logits=logits, phrases=phrases, **draw_bbox_config)
     else:
         annotated_frame, label_coordinates = annotate(image_source=image_source, boxes=filtered_boxes, logits=logits, phrases=phrases, text_scale=text_scale, text_padding=text_padding)
-    print(f"Check memory for annote")
     pil_img = Image.fromarray(annotated_frame)
     pil_img_width = pil_img.width
     pil_img_height = pil_img.height
     buffered = io.BytesIO()
     pil_img.save(buffered, format="PNG")
     encoded_image = base64.b64encode(buffered.getvalue()).decode('ascii')
-    print(f"Check memory for encoded image")
     if output_coord_in_ratio:
         label_coordinates = {k: [v[0]/w, v[1]/h, v[2]/w, v[3]/h] for k, v in label_coordinates.items()}
         assert w == annotated_frame.shape[1] and h == annotated_frame.shape[0]
-    print(f"Check memory for label coordinates")
 
     process = psutil.Process(os.getpid())
 
@@ -541,9 +580,7 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
 
             cropped_image_array = np.asarray(cropped_image)
 
-
             result = engine(cropped_image_array)[0]
-
 
             detected_text = ""
 
