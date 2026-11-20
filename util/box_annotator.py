@@ -89,7 +89,6 @@ class BoxAnnotator:
         font = cv2.FONT_HERSHEY_SIMPLEX
         for i in range(len(detections)):
             x1, y1, x2, y2 = detections.xyxy[i].astype(int)
-            print(f"x1: {x1}, x2: {x2}, y1: {y1}, y2: {y2}")
             class_id = (
                 detections.class_id[i] if detections.class_id is not None else None
             )
@@ -141,7 +140,6 @@ class BoxAnnotator:
 
             else:
                 text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2 = get_optimal_label_pos(self.text_padding, text_width, text_height, x1, y1, x2, y2, detections, image_size)
-            print(f"text x1: {text_background_x1}, text x2: {text_background_x2}, text y1: {text_background_y1}, text y2: {text_background_y2}")
             cv2.rectangle(
                 img=scene,
                 pt1=(text_background_x1, text_background_y1),
@@ -159,7 +157,6 @@ class BoxAnnotator:
             text_y = text_y - 10
             draw.text(xy=(text_x, text_y), text=text, font=image_font, fill=text_color)
             scene = np.array(img)
-            print(f"text: {text}")
             """cv2.putText(
                 img=scene,
                 text=text,
@@ -278,6 +275,4 @@ def get_optimal_label_pos(text_padding, text_width, text_height, x1, y1, x2, y2,
     is_overlap = get_is_overlap(detections, text_background_x1, text_background_y1, text_background_x2, text_background_y2, image_size)
     if not is_overlap:
         return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
-    print(f"text background x1: {text_background_x1} text background x2: {text_background_x2}")
-    print(f"text background y1: {text_background_y1} text background y2: {text_background_y2}")
     return text_x, text_y, text_background_x1, text_background_y1, text_background_x2, text_background_y2
