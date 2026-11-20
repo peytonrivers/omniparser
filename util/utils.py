@@ -27,7 +27,11 @@ import numpy as np
 import psutil
 # reader = easyocr.Reader(['en'])
 
-engine = RapidOCR()
+engine = RapidOCR(
+    det_use_cuda=True,
+    cls_use_cuda=True,
+    rec_use_cuda=True
+)
 
 print("hello")
 
