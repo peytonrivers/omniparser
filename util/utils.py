@@ -29,6 +29,8 @@ import psutil
 
 engine = RapidOCR()
 
+print("hello")
+
 """paddle_ocr = PaddleOCR(
     lang='en',  # other lang also available
     use_angle_cls=True,
