@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageFont, ImageDraw
 import time
+import platform
 
 from supervision.detection.core import Detections
 from supervision.draw.color import Color, ColorPalette
@@ -153,6 +154,11 @@ class BoxAnnotator:
             text_color = (0,0,0) if luminance > 160 else (255,255,255)
             img = Image.fromarray(scene)
             image_font = ImageFont.truetype("/Users/peytonrivers/downloads/roboto/Roboto-Italic-VariableFont_wdth,wght.ttf", 10)
+
+            if platform.system() == "Darwin":
+                image_font = ImageFont.truetype("/Users/peytonrivers/downloads/roboto/Roboto-Italic-VariableFont_wdth,wght.ttf", 10)
+            else:
+                image_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
             draw = ImageDraw.Draw(img)
             text_y = text_y - 10
             draw.text(xy=(text_x, text_y), text=text, font=image_font, fill=text_color)
