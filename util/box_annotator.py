@@ -153,7 +153,6 @@ class BoxAnnotator:
             luminance = 0.299 * box_color[0] + 0.587 * box_color[1] + 0.114 * box_color[2]
             text_color = (0,0,0) if luminance > 160 else (255,255,255)
             img = Image.fromarray(scene)
-            image_font = ImageFont.truetype("/Users/peytonrivers/downloads/roboto/Roboto-Italic-VariableFont_wdth,wght.ttf", 10)
 
             if platform.system() == "Darwin":
                 image_font = ImageFont.truetype("/Users/peytonrivers/downloads/roboto/Roboto-Italic-VariableFont_wdth,wght.ttf", 10)
