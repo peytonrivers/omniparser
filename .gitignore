@@ -8,3 +8,7 @@ omnitool/gradio/uploads/
 .venv/
 *.pyc
 
+
+.env
+.env.*
+!.env.example
