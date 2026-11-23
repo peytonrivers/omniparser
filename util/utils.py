@@ -7,8 +7,7 @@ import json
 import requests
 # utility function
 import os
-from openai import AzureOpenAI
-
+import indra_ocr
 import json
 import sys
 import os
@@ -21,17 +20,15 @@ import easyocr
 from paddleocr import PaddleOCR
 import gc
 
+
 from rapidocr_onnxruntime import RapidOCR
 
 import numpy as np
 import psutil
 # reader = easyocr.Reader(['en'])
 
-engine = RapidOCR(
-    det_use_cuda=True,
-    cls_use_cuda=True,
-    rec_use_cuda=True
-)
+engine = indra_ocr.load(threads=4)
+
 
 print("hello")
 
@@ -477,7 +474,9 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     if not imgsz:
         imgsz = (h, w)
     # print('image size:', w, h)
+    start_time = time.perf_counter()
     xyxy, logits, phrases = predict_yolo(model=model, image=image_source, box_threshold=BOX_TRESHOLD, imgsz=imgsz, scale_img=scale_img, iou_threshold=0.1)
+    print(f"YOLO processing time: {time.perf_counter() - start_time:.4f} seconds")
     xyxy = xyxy / torch.Tensor([w, h, w, h]).to(xyxy.device)
     image_source = np.asarray(image_source)
     print(f"Check memory for predict torch tensor and np.asarray")
@@ -490,9 +489,10 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
     else:
         print('no ocr bbox!!!')
         ocr_bbox = None
-
-    ocr_bbox_elem = rapidocr_process(image_source=image_source, iou_threshold=iou_threshold)
-    ocr_bbox_elem2 = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
+    start_time = time.perf_counter()
+    # ocr_bbox_elem = rapidocr_process(image_source=image_source, iou_threshold=iou_threshold)
+    print(f"RapidOCR processing time: {time.perf_counter() - start_time:.4f} seconds")
+    ocr_bbox_elem = [{'type': 'text', 'bbox':box, 'content':txt} for box, txt in zip(ocr_bbox, ocr_text) if int_box_area(box, w, h) > 0] 
     xyxy_elem = [{'type': 'icon', 'bbox':box, 'content':None} for box in xyxy.tolist() if int_box_area(box, w, h) > 0]
     filtered_boxes = ocr_bbox_elem + xyxy_elem
     # filtered_boxes = remove_overlap_new(boxes=xyxy_elem, iou_threshold=iou_threshold, ocr_bbox=ocr_bbox_elem)
@@ -547,7 +547,7 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
         assert w == annotated_frame.shape[1] and h == annotated_frame.shape[0]
 
     process = psutil.Process(os.getpid())
-
+    start_time = time.perf_counter()
     def get_memory_gb():
         """Return the current Python process RAM usage in GB."""
         return process.memory_info().rss / (1024 ** 3)
@@ -555,7 +555,7 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
 
     print("Check memory for label coordinates")
 
-    for l in range(len(filtered_boxes_elem)):
+    """for l in range(len(filtered_boxes_elem)):
         current_box = filtered_boxes_elem[l]
         current_coordinates = current_box["bbox"]
         content = current_box["content"]
@@ -605,8 +605,8 @@ def get_som_labeled_img(image_source: Union[str, Image.Image], model=None, BOX_T
             del cropped_image_array
             del cropped_image
 
-            collected_objects = gc.collect()
-
+            collected_objects = gc.collect()"""
+    print(f"Time after OCR processing: {time.perf_counter() - start_time:.4f} seconds")
     return encoded_image, label_coordinates, filtered_boxes_elem
 
 
@@ -626,14 +626,17 @@ def get_xywh_yolo(input):
     return x, y, w, h
 
 def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, output_bb_format='xywh', goal_filtering=None, easyocr_args=None, use_paddleocr=False):
+    start_time = time.perf_counter()
     if isinstance(image_source, str):
         image_source = Image.open(image_source)
     if image_source.mode == 'RGBA':
         # Convert RGBA to RGB to avoid alpha channel issues
         image_source = image_source.convert('RGB')
     image_np = np.array(image_source)
+    print(f"pre processing time: {time.perf_counter() - start_time:.4f} seconds")
     w, h = image_source.size
     result = engine(image_np)[0]
+    print(f"RapidOCR processing time: {time.perf_counter() - start_time:.4f} seconds")
     coord = [item[0] for item in result if item[2] > 0.5]
     text = [item[1] for item in result if item[2] > 0.5]
     if display_img:
@@ -650,6 +653,56 @@ def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, out
             bb = [get_xywh(item) for item in coord]
         elif output_bb_format == 'xyxy':
             bb = [get_xyxy(item) for item in coord]
+    print(f"last processing time: {time.perf_counter() - start_time:.4f} seconds")
+    return (text, bb), goal_filtering
+
+def check_ocr_box(image_source: Union[str, Image.Image], display_img=True, output_bb_format='xywh', goal_filtering=None, easyocr_args=None, use_paddleocr=False):
+    start_time = time.perf_counter()
+    if isinstance(image_source, str):
+        image_source = Image.open(image_source)
+    if image_source.mode == 'RGBA':
+        # Convert RGBA to RGB to avoid alpha channel issues
+        image_source = image_source.convert('RGB')
+    image_np = np.array(image_source)
+    print(f"pre processing time: {time.perf_counter() - start_time:.4f} seconds")
+    w, h = image_source.size
+
+    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+    result = engine.ocr(gray)
+
+    print(f"IndraOCR processing time: {time.perf_counter() - start_time:.4f} seconds")
+
+    coord = [item.box for item in result.lines if item.conf > 0.5]
+    text = [item.text for item in result.lines if item.conf > 0.5]
+
+    # IndraOCR coordinates: (x1, y1, x2, y2)
+    coord = [
+        tuple(map(int, box))
+        for box in coord
+    ]
+
+    if display_img:
+        opencv_img = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        bb = []
+
+        for x1, y1, x2, y2 in coord:
+            x, y, a, b = x1, y1, x2 - x1, y2 - y1
+            bb.append((x, y, a, b))
+            cv2.rectangle(opencv_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        plt.imshow(cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB))
+
+    else:
+        if output_bb_format == 'xywh':
+            bb = [
+                (x1, y1, x2 - x1, y2 - y1)
+                for x1, y1, x2, y2 in coord
+            ]
+
+        elif output_bb_format == 'xyxy':
+            bb = coord
+
+    print(f"last processing time: {time.perf_counter() - start_time:.4f} seconds")
     return (text, bb), goal_filtering
 
 """def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, output_bb_format='xywh', goal_filtering=None, easyocr_args=None, use_paddleocr=False):
